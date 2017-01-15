@@ -61,6 +61,7 @@ class Builder(object):
         self.build = args.build
         self.host = args.host
         self.target = args.target
+        self.make_cmd = ['make', '-j{}'.format(args.jobs)]
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
 
@@ -89,6 +90,7 @@ class Builder(object):
             os.makedirs(work_dir)
         if not os.path.exists(os.path.join(work_dir, 'Makefile')):
             subprocess.run([os.path.join(_GCC_SRC, 'configure')] + args, check=True, cwd=work_dir)
+        subprocess.run(self.make_cmd, check=True, cwd=work_dir)
 
     def compile(self):
         if self.is_cross:
@@ -104,7 +106,10 @@ def main():
     parser.add_argument('--build', action=Canonicalize, default=build_triple)
     parser.add_argument('--host', action=Canonicalize, default=build_triple)
     parser.add_argument('--target', action=Canonicalize, default=build_triple)
+    parser.add_argument('--jobs', '-j', default=os.cpu_count() + 1, type=int)
     args = parser.parse_args()
+
+    print('build: {}, host: {}, target: {}'.format(args.build, args.host, args.target))
     builder = Builder(args)
     builder.fetch()
     builder.compile()
