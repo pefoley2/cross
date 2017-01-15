@@ -18,8 +18,10 @@ _GCC_SRC = os.path.join(_SRC_DIR, 'gcc')
 _WORK_DIR = os.path.join(_DIR, 'work')
 _GCC_WORK = os.path.join(_WORK_DIR, '{}-gcc')
 
+
 class CrossException(Exception):
     pass
+
 
 def get_build():
     proc = subprocess.run('/usr/share/gnuconfig/config.guess',
