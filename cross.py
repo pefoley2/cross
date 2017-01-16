@@ -150,7 +150,12 @@ class Builder(object):
             raise CrossException("You shouldn't be building anything for build.")
         return name, work_dir, args
 
-    def build_pkg(self, pkg: str, target: str, system: Target, extra_args: List[str], host_only=False) -> None:
+    def build_pkg(self,
+                  pkg: str,
+                  target: str,
+                  system: Target,
+                  extra_args: List[str],
+                  host_only=False) -> None:
         triple, work_dir, config_args = self.format_args(pkg, system, host_only)
         if not os.path.exists(_LOG_DIR):
             os.makedirs(_LOG_DIR)
@@ -186,8 +191,8 @@ class Builder(object):
             #self.build_pkg('binutils', 'install', system, binutils_args)
             #self.build_pkg('glibc', 'install-headers', system, glibc_args, True)
             self.ensure_stubs()
-            self.build_pkg('gcc', 'all', system, common_args)
-            self.build_pkg('gcc', 'install', system, common_args)
+            self.build_pkg('gcc', 'all', system, gcc_args)
+            self.build_pkg('gcc', 'install', system, gcc_args)
 
 
 def main() -> None:
