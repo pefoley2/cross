@@ -75,6 +75,8 @@ def get_arch(arch: str) -> str:
     arch, _ = arch.split('-', maxsplit=1)
     if arch == 'alpha':
         return 'alpha'
+    if arch == 'powerpc':
+        return 'powerpc'
     raise Exception('Unknown arch {}'.format(arch))
 
 
@@ -215,8 +217,8 @@ class Builder(object):
                 'headers_install', 'ARCH={}'.format(self.arch),
                 'INSTALL_HDR_PATH={}'.format(self.target_dir)
             ], system, [])
-            self.build_pkg('glibc', ['all'], system, glibc_args)
-            self.build_pkg('glibc', ['install'], system, glibc_args)
+            self.build_pkg('glibc', ['all'], system, glibc_args, '2')
+            self.build_pkg('glibc', ['install'], system, glibc_args, '2')
             self.build_pkg('gcc', ['all'], system, common_args, '2')
             self.build_pkg('gcc', ['install'], system, common_args, '2')
 
