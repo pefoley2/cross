@@ -17,6 +17,8 @@ _PKGS = collections.defaultdict(dict)  # type: Dict[str, Dict[str, str]]
 
 _PKGS['binutils']['url'] = 'git://sourceware.org/git/binutils-gdb.git'
 _PKGS['gcc']['url'] = 'git://gcc.gnu.org/git/gcc.git'
+_PKGS['glibc']['url'] = 'git://sourceware.org/git/glibc.git'
+_PKGS['linux']['url'] = 'git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,14 +27,20 @@ _INSTALL_DIR = os.path.join(_DIR, 'install')
 _LOG_DIR = os.path.join(_DIR, 'logs')
 _PKGS['binutils']['log'] = os.path.join(_LOG_DIR, 'binutils-{}-{}.log')
 _PKGS['gcc']['log'] = os.path.join(_LOG_DIR, 'gcc-{}-{}.log')
+_PKGS['glibc']['log'] = os.path.join(_LOG_DIR, 'glibc-{}-{}.log')
+_PKGS['linux']['log'] = os.path.join(_LOG_DIR, 'linux-{}-{}.log')
 
 _SRC_DIR = os.path.join(_DIR, 'src')
 _PKGS['binutils']['src'] = os.path.join(_SRC_DIR, 'binutils')
 _PKGS['gcc']['src'] = os.path.join(_SRC_DIR, 'gcc')
+_PKGS['glibc']['src'] = os.path.join(_SRC_DIR, 'glibc')
+_PKGS['linux']['src'] = os.path.join(_SRC_DIR, 'linux')
 
 _WORK_DIR = os.path.join(_DIR, 'work')
 _PKGS['binutils']['work'] = os.path.join(_WORK_DIR, 'binutils-{}')
 _PKGS['gcc']['work'] = os.path.join(_WORK_DIR, 'gcc-{}')
+_PKGS['glibc']['work'] = os.path.join(_WORK_DIR, 'glibc-{}')
+_PKGS['linux']['work'] = os.path.join(_WORK_DIR, 'linux-{}')
 
 
 class CrossException(Exception):
