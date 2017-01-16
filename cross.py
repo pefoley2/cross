@@ -180,7 +180,8 @@ class Builder(object):
                 run_command([configure_path] + config_args + extra_args,
                             get_log_path(stage, pkg, triple, 'config'), work_dir)
             else:
-                run_command(self.make_cmd + ['defconfig', 'O={}'.format(work_dir)],
+                run_command(self.make_cmd +
+                            ['defconfig', 'ARCH={}'.format(self.arch), 'O={}'.format(work_dir)],
                             get_log_path(stage, pkg, triple, target), _PKGS['linux']['src'])
         run_command(self.make_cmd + target, get_log_path(stage, pkg, triple, target), work_dir)
 
@@ -206,9 +207,9 @@ class Builder(object):
             to_build.append(Target.CANADIAN)
         for system in to_build:
             self.build_pkg('binutils', ['all'], system, binutils_args)
-            self.build_pkg('binutils', '[install'], system, binutils_args)
+            self.build_pkg('binutils', ['install'], system, binutils_args)
             #self.build_pkg('glibc', ['install-headers'], system, glibc_args, host_only=True)
-            self.ensure_stubs()
+            #self.ensure_stubs()
             self.build_pkg('gcc', ['all-gcc'], system, gcc_args)
             self.build_pkg('gcc', ['install-gcc'], system, gcc_args)
             self.build_pkg('linux', [
