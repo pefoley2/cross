@@ -140,10 +140,15 @@ class Builder(object):
                     host_only=False) -> Tuple[str, str, List[str]]:
         work = _PKGS[pkg]['work']
         name = work_dir = args = None
-        host = self.host
+        host = self.build
         # If we're building a host-only library, we need to tell it to build for target.
-        if host_only and target == Target.TARGET:
-            host = self.target
+        if host_only:
+            if target == Target.TARGET:
+                host = self.target
+            elif target == Target.HOST:
+                host = self.host
+            else:
+                raise CrossException("What are you doing?")
         if target == Target.HOST:
             name = self.host
             work_dir = work.format(stage, self.host)
@@ -189,7 +194,7 @@ class Builder(object):
     def run_command(self, args: List[str], log_path: str, work_dir: str) -> None:
         if self.dry_run:
             cmd = ' '.join(args)
-            print('{}, cwd={}'.format(cmd, work_dir))
+            print('{}, cwd={}'.format(cmd, work_dir).replace('{}/'.format(_DIR), ''))
             return
         proc = None
         try:
