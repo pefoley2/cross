@@ -133,7 +133,8 @@ class Builder(object):
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
         self.common_args = ['--prefix={}'.format(_INSTALL_DIR), '--disable-multilib']
-        self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c']
+        # glibc checks for a cross g++
+        self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c,c++']
         self.binutils_args = self.common_args + ['--disable-gdb']
 
     def format_args(self, stage: str, pkg: str, target: Target,
