@@ -209,18 +209,22 @@ class Builder(object):
         for system in to_build:
             self.build_pkg('binutils', ['all'], system, binutils_args)
             self.build_pkg('binutils', ['install'], system, binutils_args)
+            # This needs to come before glibc is configured,
+            # otherwise we'll pick up the wrong gcc and fail when we try to actually build the library.
             self.build_pkg('gcc', ['all-gcc'], system, bootstrap_args)
             self.build_pkg('gcc', ['install-gcc'], system, bootstrap_args)
             self.build_pkg('glibc', ['install-headers'], system, glibc_args)
             self.ensure_stubs()
-            self.build_pkg('gcc', ['all-target-libgcc'], system, bootstrap_args)
-            self.build_pkg('gcc', ['install-target-libgcc'], system, bootstrap_args)
             self.build_pkg('linux', [
                 'headers_install', 'ARCH={}'.format(self.arch),
                 'INSTALL_HDR_PATH={}'.format(self.target_dir)
             ], system, [])
+            # glibc links against libgcc, so we need to build it first.
+            self.build_pkg('gcc', ['all-target-libgcc'], system, bootstrap_args)
+            self.build_pkg('gcc', ['install-target-libgcc'], system, bootstrap_args)
             self.build_pkg('glibc', ['all'], system, glibc_args)
             self.build_pkg('glibc', ['install'], system, glibc_args)
+            # We need to build a new gcc to get shared libraries, which need to link with glibc.
             self.build_pkg('gcc', ['all'], system, common_args, '2')
             self.build_pkg('gcc', ['install'], system, common_args, '2')
 
