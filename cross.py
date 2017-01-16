@@ -177,7 +177,7 @@ class Builder(object):
             # Linux doesn't use autoconf.
             if os.path.exists(configure_path):
                 run_command([configure_path] + config_args + extra_args,
-                            get_log_path(stage, pkg, triple, 'config'), work_dir)
+                            get_log_path(stage, pkg, triple, ['config']), work_dir)
             else:
                 run_command(self.make_cmd +
                             ['defconfig', 'ARCH={}'.format(self.arch), 'O={}'.format(work_dir)],
