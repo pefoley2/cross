@@ -20,6 +20,8 @@ _PKGS['gcc']['url'] = 'git://gcc.gnu.org/git/gcc.git'
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
+_INSTALL_DIR = os.path.join(_DIR, 'install')
+
 _LOG_DIR = os.path.join(_DIR, 'logs')
 _PKGS['binutils']['log'] = os.path.join(_LOG_DIR, 'binutils-{}-{}.log')
 _PKGS['gcc']['log'] = os.path.join(_LOG_DIR, 'gcc-{}-{}.log')
@@ -147,17 +149,19 @@ class Builder(object):
             args = [os.path.join(_PKGS[pkg]['src'], 'configure')] + config_args
             run_command(args + extra_args, get_log_path(pkg, triple, 'config'), work_dir)
         run_command(self.make_cmd, get_log_path(pkg, triple, 'build'), work_dir)
+        run_command(self.make_cmd + ['install'], get_log_path(pkg, triple, 'install'), work_dir)
 
     def compile(self) -> None:
-        binutils_args = ['--disable-gdb']
+        binutils_args = ['--disable-gdb', '--prefix={}'.format(_INSTALL_DIR)]
+        gcc_args = ['--prefix={}'.format(_INSTALL_DIR)]
         if self.is_cross:
             self.build_pkg('binutils', Target.TARGET, binutils_args)
-            self.build_pkg('gcc', Target.TARGET, [])
+            self.build_pkg('gcc', Target.TARGET, gcc_args)
         if self.is_canadian:
             self.build_pkg('binutils', Target.HOST, binutils_args)
-            self.build_pkg('gcc', Target.HOST, [])
+            self.build_pkg('gcc', Target.HOST, gcc_args)
             self.build_pkg('binutils', Target.CANADIAN, binutils_args)
-            self.build_pkg('gcc', Target.CANADIAN, [])
+            self.build_pkg('gcc', Target.CANADIAN, gcc_args)
 
 
 def main() -> None:
