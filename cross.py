@@ -13,7 +13,7 @@ from typing import Any, List, Sequence, Tuple, Union
 
 warnings.simplefilter('default')
 
-_PKGS = collections.defaultdict(dict) # type: Dict[str, Dict[str, str]]
+_PKGS = collections.defaultdict(dict)  # type: Dict[str, Dict[str, str]]
 
 _PKGS['binutils']['url'] = 'git://sourceware.org/git/binutils-gdb.git'
 _PKGS['gcc']['url'] = 'git://gcc.gnu.org/git/gcc.git'
@@ -136,7 +136,7 @@ class Builder(object):
             raise CrossException("You shouldn't be building anything for build.")
         return name, work_dir, args
 
-    def build_pkg(self, pkg: str, target: Target) -> None:
+    def build_pkg(self, pkg: str, target: Target, extra_args: List[str]) -> None:
         triple, work_dir, config_args = self.format_args(pkg, target)
         if not os.path.exists(_LOG_DIR):
             os.makedirs(_LOG_DIR)
@@ -145,18 +145,19 @@ class Builder(object):
 
         if not os.path.exists(os.path.join(work_dir, 'Makefile')):
             args = [os.path.join(_PKGS[pkg]['src'], 'configure')] + config_args
-            run_command(args, get_log_path(pkg, triple, 'config'), work_dir)
+            run_command(args + extra_args, get_log_path(pkg, triple, 'config'), work_dir)
         run_command(self.make_cmd, get_log_path(pkg, triple, 'build'), work_dir)
 
     def compile(self) -> None:
+        binutils_args = ['--disable-gdb']
         if self.is_cross:
-            self.build_pkg('binutils', Target.TARGET)
-            self.build_pkg('gcc', Target.TARGET)
+            self.build_pkg('binutils', Target.TARGET, binutils_args)
+            self.build_pkg('gcc', Target.TARGET, [])
         if self.is_canadian:
-            self.build_pkg('binutils', Target.HOST)
-            self.build_pkg('gcc', Target.HOST)
-            self.build_pkg('binutils', Target.CANADIAN)
-            self.build_pkg('gcc', Target.CANADIAN)
+            self.build_pkg('binutils', Target.HOST, binutils_args)
+            self.build_pkg('gcc', Target.HOST, [])
+            self.build_pkg('binutils', Target.CANADIAN, binutils_args)
+            self.build_pkg('gcc', Target.CANADIAN, [])
 
 
 def main() -> None:
