@@ -80,7 +80,8 @@ class Builder(object):
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
 
-    def fetch(self) -> None:
+    @staticmethod
+    def fetch() -> None:
         for src, url in [(_BINUTILS_SRC, _BINUTILS_URL), (_GCC_SRC, _GCC_URL)]:
             if not os.path.exists(src):
                 subprocess.run(['git', 'clone', url, src], check=True)
@@ -106,8 +107,9 @@ class Builder(object):
             raise CrossException("You shouldn't be building GCC for build.")
         return log_dir, work_dir, args
 
-    def configure_pkg(self, src: str, log: str, work: str, args: List[str]) -> None:
-        with open(log, 'w') as f:
+    @staticmethod
+    def configure_pkg(src: str, log: str, work: str, args: List[str]) -> None:
+        with open(log, 'w') as log_file:
             proc = subprocess.Popen(
                 [os.path.join(src, 'configure')] + args,
                 stdout=subprocess.PIPE,
@@ -116,7 +118,7 @@ class Builder(object):
                 cwd=work)
             for line in proc.stdout:
                 sys.stdout.write(line)
-                f.write(line)
+                log_file.write(line)
             if proc.wait():
                 raise CrossException('Configuration of {} failed.'.format(src))
 
