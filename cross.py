@@ -84,11 +84,10 @@ class Builder(object):
     def fetch() -> None:
         for src, url in [(_BINUTILS_SRC, _BINUTILS_URL), (_GCC_SRC, _GCC_URL)]:
             if not os.path.exists(src):
-                subprocess.run(['git', 'clone', url, src], check=True)
+                subprocess.run(['git', 'clone', '--branch', 'master', url, src], check=True)
             subprocess.run(['git', 'pull'], check=True, cwd=src)
 
-    def format_args(self, work: str, target: Target) -> Tuple[str, str, List[str]]:
-        log = work.replace(_WORK_DIR, _LOG_DIR)
+    def format_args(self, log: str, work: str, target: Target) -> Tuple[str, str, List[str]]:
         log_dir = work_dir = args = None
         if target == Target.HOST:
             work_dir = work.format(self.host)
@@ -109,21 +108,23 @@ class Builder(object):
 
     @staticmethod
     def configure_pkg(src: str, log: str, work: str, args: List[str]) -> None:
-        with open(log, 'w') as log_file:
-            proc = subprocess.Popen(
-                [os.path.join(src, 'configure')] + args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True,
-                cwd=work)
-            for line in proc.stdout:
-                sys.stdout.write(line)
-                log_file.write(line)
-            if proc.wait():
-                raise CrossException('Configuration of {} failed.'.format(src))
+        log_file = open(log, 'w')
+        proc = subprocess.Popen(
+            [os.path.join(src, 'configure')] + args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            cwd=work)
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            log_file.write(line)
+        proc.stdout.close()
+        log_file.close()
+        if proc.wait():
+            raise CrossException('Configuration of {} failed.'.format(src))
 
-    def build_pkg(self, src: str, work: str, target: Target) -> None:
-        log_dir, work_dir, args = self.format_args(work, target)
+    def build_pkg(self, src: str, log: str, work: str, target: Target) -> None:
+        log_dir, work_dir, args = self.format_args(log, work, target)
         if not os.path.exists(_LOG_DIR):
             os.makedirs(_LOG_DIR)
         if not os.path.exists(work_dir):
@@ -134,10 +135,10 @@ class Builder(object):
         subprocess.run(self.make_cmd, check=True, cwd=work_dir)
 
     def build_gcc(self, target: Target) -> None:
-        self.build_pkg(_GCC_SRC, _GCC_WORK, target)
+        self.build_pkg(_GCC_SRC, _GCC_LOG, _GCC_WORK, target)
 
     def build_binutils(self, target: Target) -> None:
-        self.build_pkg(_BINUTILS_SRC, _BINUTILS_WORK, target)
+        self.build_pkg(_BINUTILS_SRC, _BINUTILS_LOG, _BINUTILS_WORK, target)
 
     def compile(self) -> None:
         if self.is_cross:
