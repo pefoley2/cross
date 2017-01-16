@@ -196,7 +196,7 @@ class Builder(object):
         os.environ['PATH'] = '{}:{}'.format(os.environ['PATH'], os.path.join(_INSTALL_DIR, 'bin'))
         common_args = ['--prefix={}'.format(_INSTALL_DIR)]
         binutils_args = ['--disable-gdb'] + common_args
-        gcc_args = common_args  #+ ['--disable-shared', '--disable-libssp', '--disable-libquadmath', '--disable-libgomp' '--enable-languages=c']
+        bootstrap_args = common_args + ['--disable-shared', '--enable-languages=c']
         # target is host for glibc.
         glibc_args = ['--prefix={}'.format(self.target_dir)]
         to_build = []
@@ -208,18 +208,18 @@ class Builder(object):
         for system in to_build:
             self.build_pkg('binutils', ['all'], system, binutils_args)
             self.build_pkg('binutils', ['install'], system, binutils_args)
-            #self.build_pkg('glibc', ['install-headers'], system, glibc_args, host_only=True)
-            #self.ensure_stubs()
-            self.build_pkg('gcc', ['all-gcc'], system, gcc_args)
-            self.build_pkg('gcc', ['install-gcc'], system, gcc_args)
+            self.build_pkg('glibc', ['install-headers'], system, glibc_args, host_only=True)
+            self.ensure_stubs()
+            self.build_pkg('gcc', ['all-gcc', 'all-target-libgcc'], system, bootstrap_args)
+            self.build_pkg('gcc', ['install-gcc', 'install-target-libgcc'], system, bootstrap_args)
             self.build_pkg('linux', [
                 'headers_install', 'ARCH={}'.format(self.arch),
                 'INSTALL_HDR_PATH={}'.format(self.target_dir)
             ], system, [])
             self.build_pkg('glibc', ['all'], system, glibc_args, host_only=True)
             self.build_pkg('glibc', ['install'], system, glibc_args, host_only=True)
-            self.build_pkg('gcc', ['all'], system, gcc_args, '2')
-            self.build_pkg('gcc', ['install'], system, gcc_args, '2')
+            self.build_pkg('gcc', ['all'], system, common_args, '2')
+            self.build_pkg('gcc', ['install'], system, common_args, '2')
 
 
 def main() -> None:
@@ -232,7 +232,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print('build: {}, host: {}, target: {}'.format(args.build, args.host, args.target))
-    #fetch()
+    fetch()
     Builder(args).compile()
 
 
