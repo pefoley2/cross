@@ -213,12 +213,13 @@ class Builder(object):
             # otherwise we'll pick up the wrong gcc and fail when we try to actually build the library.
             self.build_pkg('gcc', ['all-gcc'], system, bootstrap_args)
             self.build_pkg('gcc', ['install-gcc'], system, bootstrap_args)
-            self.build_pkg('glibc', ['install-headers'], system, glibc_args)
-            self.ensure_stubs()
+            # glibc requires linux headers to be available.
             self.build_pkg('linux', [
                 'headers_install', 'ARCH={}'.format(self.arch),
                 'INSTALL_HDR_PATH={}'.format(self.target_dir)
             ], system, [])
+            self.build_pkg('glibc', ['install-headers'], system, glibc_args)
+            self.ensure_stubs()
             # glibc links against libgcc, so we need to build it first.
             self.build_pkg('gcc', ['all-target-libgcc'], system, bootstrap_args)
             self.build_pkg('gcc', ['install-target-libgcc'], system, bootstrap_args)
