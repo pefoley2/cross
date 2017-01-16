@@ -20,6 +20,11 @@ _PKGS['gcc']['url'] = 'git://gcc.gnu.org/git/gcc.git'
 _PKGS['glibc']['url'] = 'git://sourceware.org/git/glibc.git'
 _PKGS['linux']['url'] = 'git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
 
+_PKGS['binutils']['tag'] = 'binutils-2_27'
+_PKGS['gcc']['tag'] = 'gcc-6_3_0-release'
+_PKGS['glibc']['tag'] = 'glibc-2.24'
+_PKGS['linux']['tag'] = 'v4.9'
+
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
 _INSTALL_DIR = os.path.join(_DIR, 'install')
@@ -64,7 +69,7 @@ def fetch() -> None:
         if not os.path.exists(pkg['src']):
             subprocess.run(['git', 'clone', '--branch', 'master', pkg['url'], pkg['src']],
                            check=True)
-        subprocess.run(['git', 'pull'], check=True, cwd=pkg['src'])
+        subprocess.run(['git', 'checkout', pkg['tag']], check=True, cwd=pkg['src'])
 
 
 def get_log_path(stage: str, pkg: str, triple: str, action: str) -> str:
@@ -196,7 +201,6 @@ class Builder(object):
     def compile(self) -> None:
         os.environ['PATH'] = '{}:{}'.format(os.environ['PATH'], os.path.join(_INSTALL_DIR, 'bin'))
         common_args = ['--prefix={}'.format(_INSTALL_DIR)]
-        binutils_args = ['--disable-gdb'] + common_args
         bootstrap_args = common_args + ['--disable-shared', '--enable-languages=c']
         # target is host for glibc.
         glibc_args = ['--prefix={}'.format(self.target_dir)]
@@ -207,8 +211,8 @@ class Builder(object):
             to_build.append(Target.HOST)
             to_build.append(Target.CANADIAN)
         for system in to_build:
-            self.build_pkg('binutils', ['all'], system, binutils_args)
-            self.build_pkg('binutils', ['install'], system, binutils_args)
+            self.build_pkg('binutils', ['all'], system, common_args)
+            self.build_pkg('binutils', ['install'], system, common_args)
             # This needs to come before glibc is configured,
             # otherwise we'll pick up the wrong gcc and fail when we try to actually build the library.
             self.build_pkg('gcc', ['all-gcc'], system, bootstrap_args)
