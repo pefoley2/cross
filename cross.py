@@ -28,6 +28,7 @@ _PKGS['linux']['tag'] = 'v4.9'
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
 _INSTALL_DIR = os.path.join(_DIR, 'install')
+_INSTALL_BIN = os.path.join(_INSTALL_DIR, 'bin')
 
 _LOG_DIR = os.path.join(_DIR, 'logs')
 _PKGS['binutils']['log'] = os.path.join(_LOG_DIR, 'binutils{}-{}-{}.log')
@@ -85,27 +86,12 @@ def get_arch(arch: str) -> str:
     raise Exception('Unknown arch {}'.format(arch))
 
 
-def run_command(args: List[str], log_path: str, work_dir: str) -> None:
-    proc = None
-    try:
-        with open(log_path, 'w') as log_file:
-            proc = subprocess.Popen(
-                args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True,
-                cwd=work_dir)
-            for line in proc.stdout:
-                sys.stdout.write(line)
-                log_file.write(line)
-            proc.stdout.close()
-        if proc.wait():
-            raise CrossException('Command {} failed.'.format(' '.join(args)))
-    except:
-        raise
-    finally:
-        if hasattr(proc, 'stdout'):
-            proc.stdout.close()
+def ensure_stubs(directory: str) -> None:
+    # Glibc doesn't create this file when cross-compiling.
+    stubs_path = os.path.join(directory, 'include', 'gnu', 'stubs.h')
+    if not os.path.exists(stubs_path):
+        with open(stubs_path, 'w') as stubs:
+            stubs.write('')
 
 
 class Canonicalize(argparse.Action):
@@ -135,21 +121,29 @@ class Target(enum.Enum):
 class Builder(object):
 
     def __init__(self, args: argparse.Namespace) -> None:
+        os.environ['PATH'] = '{}:{}'.format(os.environ['PATH'], _INSTALL_BIN)
         self.build = args.build
         self.host = args.host
         self.target = args.target
+        self.dry_run = args.dry_run
+        self.host_dir = os.path.join(_INSTALL_DIR, self.host)
         self.target_dir = os.path.join(_INSTALL_DIR, self.target)
         self.arch = get_arch(self.target)
         self.make_cmd = ['make', '-j{}'.format(args.jobs)]
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
+        self.common_args = ['--prefix={}'.format(_INSTALL_DIR), '--disable-multilib']
+        self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c']
+        self.binutils_args = self.common_args + ['--disable-gdb']
 
     def format_args(self, stage: str, pkg: str, target: Target,
                     host_only=False) -> Tuple[str, str, List[str]]:
         work = _PKGS[pkg]['work']
         name = work_dir = args = None
+        host = self.host
         # If we're building a host-only library, we need to tell it to build for target.
-        host = self.target if host_only else self.build
+        if host_only and target == Target.TARGET:
+            host = self.target
         if target == Target.HOST:
             name = self.host
             work_dir = work.format(stage, self.host)
@@ -183,27 +177,48 @@ class Builder(object):
             configure_path = os.path.join(_PKGS[pkg]['src'], 'configure')
             # Linux doesn't use autoconf.
             if os.path.exists(configure_path):
-                run_command([configure_path] + config_args + extra_args,
-                            get_log_path(stage, pkg, triple, ['config']), work_dir)
+                self.run_command([configure_path] + config_args + extra_args,
+                                 get_log_path(stage, pkg, triple, ['config']), work_dir)
             else:
-                run_command(self.make_cmd +
-                            ['defconfig', 'ARCH={}'.format(self.arch), 'O={}'.format(work_dir)],
-                            get_log_path(stage, pkg, triple, target), _PKGS['linux']['src'])
-        run_command(self.make_cmd + target, get_log_path(stage, pkg, triple, target), work_dir)
+                self.run_command(
+                    self.make_cmd +
+                    ['defconfig', 'ARCH={}'.format(self.arch), 'O={}'.format(work_dir)],
+                    get_log_path(stage, pkg, triple, target), _PKGS['linux']['src'])
+        self.run_command(self.make_cmd + target, get_log_path(stage, pkg, triple, target), work_dir)
 
-    def ensure_stubs(self) -> None:
-        # Glibc doesn't create this file when cross-compiling.
-        stubs_path = os.path.join(self.target_dir, 'include', 'gnu', 'stubs.h')
-        if not os.path.exists(stubs_path):
-            with open(stubs_path, 'w') as stubs:
-                stubs.write('')
+    def run_command(self, args: List[str], log_path: str, work_dir: str) -> None:
+        if self.dry_run:
+            cmd = ' '.join(args)
+            print('{}, cwd={}'.format(cmd, work_dir))
+            return
+        proc = None
+        try:
+            with open(log_path, 'w') as log_file:
+                proc = subprocess.Popen(
+                    args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    universal_newlines=True,
+                    cwd=work_dir)
+                for line in proc.stdout:
+                    sys.stdout.write(line)
+                    log_file.write(line)
+                proc.stdout.close()
+            if proc.wait():
+                raise CrossException('Command {} failed.'.format(' '.join(args)))
+        except:
+            raise
+        finally:
+            if hasattr(proc, 'stdout'):
+                proc.stdout.close()
+
+    def do_canadian(self) -> None:
+        self.build_pkg('binutils', ['all'], Target.CANADIAN, self.binutils_args)
+        self.build_pkg('binutils', ['install'], Target.CANADIAN, self.binutils_args)
+        self.build_pkg('gcc', ['all'], Target.CANADIAN, self.common_args)
+        self.build_pkg('gcc', ['install'], Target.CANADIAN, self.common_args)
 
     def compile(self) -> None:
-        os.environ['PATH'] = '{}:{}'.format(os.environ['PATH'], os.path.join(_INSTALL_DIR, 'bin'))
-        common_args = ['--prefix={}'.format(_INSTALL_DIR)]
-        bootstrap_args = common_args + ['--disable-shared', '--enable-languages=c']
-        # target is host for glibc.
-        glibc_args = ['--prefix={}'.format(self.target_dir)]
         to_build = []
         if self.is_cross:
             to_build.append(Target.TARGET)
@@ -211,27 +226,32 @@ class Builder(object):
             to_build.append(Target.HOST)
             to_build.append(Target.CANADIAN)
         for system in to_build:
-            self.build_pkg('binutils', ['all'], system, common_args)
-            self.build_pkg('binutils', ['install'], system, common_args)
+            if system == Target.CANADIAN:
+                self.do_canadian()
+                return
+            self.build_pkg('binutils', ['all'], system, self.binutils_args)
+            self.build_pkg('binutils', ['install'], system, self.binutils_args)
             # This needs to come before glibc is configured,
             # otherwise we'll pick up the wrong gcc and fail when we try to actually build the library.
-            self.build_pkg('gcc', ['all-gcc'], system, bootstrap_args)
-            self.build_pkg('gcc', ['install-gcc'], system, bootstrap_args)
+            self.build_pkg('gcc', ['all-gcc'], system, self.bootstrap_args)
+            self.build_pkg('gcc', ['install-gcc'], system, self.bootstrap_args)
+            header_prefix = self.target_dir if system == Target.TARGET else self.host_dir
             # glibc requires linux headers to be available.
             self.build_pkg('linux', [
                 'headers_install', 'ARCH={}'.format(self.arch),
-                'INSTALL_HDR_PATH={}'.format(self.target_dir)
+                'INSTALL_HDR_PATH={}'.format(header_prefix)
             ], system, [])
+            glibc_args = ['--prefix={}'.format(header_prefix)]
             self.build_pkg('glibc', ['install-headers'], system, glibc_args)
-            self.ensure_stubs()
+            ensure_stubs(header_prefix)
             # glibc links against libgcc, so we need to build it first.
-            self.build_pkg('gcc', ['all-target-libgcc'], system, bootstrap_args)
-            self.build_pkg('gcc', ['install-target-libgcc'], system, bootstrap_args)
+            self.build_pkg('gcc', ['all-target-libgcc'], system, self.bootstrap_args)
+            self.build_pkg('gcc', ['install-target-libgcc'], system, self.bootstrap_args)
             self.build_pkg('glibc', ['all'], system, glibc_args)
             self.build_pkg('glibc', ['install'], system, glibc_args)
             # We need to build a new gcc to get shared libraries, which need to link with glibc.
-            self.build_pkg('gcc', ['all'], system, common_args, '2')
-            self.build_pkg('gcc', ['install'], system, common_args, '2')
+            self.build_pkg('gcc', ['all'], system, self.common_args, '2')
+            self.build_pkg('gcc', ['install'], system, self.common_args, '2')
 
 
 def main() -> None:
@@ -241,10 +261,12 @@ def main() -> None:
     parser.add_argument('--host', action=Canonicalize, default=build_triple)
     parser.add_argument('--target', action=Canonicalize, default=build_triple)
     parser.add_argument('--jobs', '-j', default=os.cpu_count() + 1, type=int)
+    parser.add_argument('--dry-run', '-n', action='store_true')
     args = parser.parse_args()
 
     print('build: {}, host: {}, target: {}'.format(args.build, args.host, args.target))
-    fetch()
+    if not args.dry_run:
+        fetch()
     Builder(args).compile()
 
 
