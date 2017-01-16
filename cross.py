@@ -243,7 +243,8 @@ class Builder(object):
             ], system, [])
             glibc_args = ['--prefix={}'.format(header_prefix)]
             self.build_pkg('glibc', ['install-headers'], system, glibc_args)
-            ensure_stubs(header_prefix)
+            if not self.dry_run:
+                ensure_stubs(header_prefix)
             # glibc links against libgcc, so we need to build it first.
             self.build_pkg('gcc', ['all-target-libgcc'], system, self.bootstrap_args)
             self.build_pkg('gcc', ['install-target-libgcc'], system, self.bootstrap_args)
