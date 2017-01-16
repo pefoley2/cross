@@ -130,7 +130,6 @@ class Builder(object):
     def __init__(self, args: argparse.Namespace) -> None:
         self.build = args.build
         self.host = args.host
-        self.host_dir = os.path.join(_INSTALL_DIR, self.host)
         self.target = args.target
         self.target_dir = os.path.join(_INSTALL_DIR, self.target)
         self.arch = get_arch(self.target)
@@ -165,8 +164,8 @@ class Builder(object):
                   target: List[str],
                   system: Target,
                   extra_args: List[str],
-                  stage: str='',
-                  host_only: bool=False) -> None:
+                  stage: str='') -> None:
+        host_only = True if pkg == 'glibc' else False
         triple, work_dir, config_args = self.format_args(stage, pkg, system, host_only)
         if not os.path.exists(_LOG_DIR):
             os.makedirs(_LOG_DIR)
@@ -208,7 +207,7 @@ class Builder(object):
         for system in to_build:
             self.build_pkg('binutils', ['all'], system, binutils_args)
             self.build_pkg('binutils', ['install'], system, binutils_args)
-            self.build_pkg('glibc', ['install-headers'], system, glibc_args, host_only=True)
+            self.build_pkg('glibc', ['install-headers'], system, glibc_args)
             self.ensure_stubs()
             self.build_pkg('gcc', ['all-gcc', 'all-target-libgcc'], system, bootstrap_args)
             self.build_pkg('gcc', ['install-gcc', 'install-target-libgcc'], system, bootstrap_args)
@@ -216,8 +215,8 @@ class Builder(object):
                 'headers_install', 'ARCH={}'.format(self.arch),
                 'INSTALL_HDR_PATH={}'.format(self.target_dir)
             ], system, [])
-            self.build_pkg('glibc', ['all'], system, glibc_args, host_only=True)
-            self.build_pkg('glibc', ['install'], system, glibc_args, host_only=True)
+            self.build_pkg('glibc', ['all'], system, glibc_args)
+            self.build_pkg('glibc', ['install'], system, glibc_args)
             self.build_pkg('gcc', ['all'], system, common_args, '2')
             self.build_pkg('gcc', ['install'], system, common_args, '2')
 
