@@ -122,22 +122,26 @@ class Builder(object):
     def __init__(self, args: argparse.Namespace) -> None:
         self.build = args.build
         self.host = args.host
+        self.host_dir = os.path.join(_INSTALL_DIR, self.host)
         self.target = args.target
+        self.target_dir = os.path.join(_INSTALL_DIR, self.target)
         self.make_cmd = ['make', '-j{}'.format(args.jobs)]
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
 
-    def format_args(self, pkg: str, target: Target) -> Tuple[str, str, List[str]]:
+    def format_args(self, pkg: str, target: Target, host_only=False) -> Tuple[str, str, List[str]]:
         work = _PKGS[pkg]['work']
         name = work_dir = args = None
+        # If we're building a host-only library, we need to tell it to build for target.
+        host = self.target if host_only else self.build
         if target == Target.HOST:
             name = self.host
             work_dir = work.format(self.host)
-            args = get_args(self.build, self.build, self.host)
+            args = get_args(self.build, host, self.host)
         elif target == Target.TARGET:
             name = self.target
             work_dir = work.format(self.target)
-            args = get_args(self.build, self.build, self.target)
+            args = get_args(self.build, host, self.target)
         elif target == Target.CANADIAN:
             name = "_".join([self.host, self.target])
             work_dir = work.format(name)
@@ -146,8 +150,8 @@ class Builder(object):
             raise CrossException("You shouldn't be building anything for build.")
         return name, work_dir, args
 
-    def build_pkg(self, pkg: str, target: Target, extra_args: List[str]) -> None:
-        triple, work_dir, config_args = self.format_args(pkg, target)
+    def build_pkg(self, pkg: str, target: str, system: Target, extra_args: List[str], host_only=False) -> None:
+        triple, work_dir, config_args = self.format_args(pkg, system, host_only)
         if not os.path.exists(_LOG_DIR):
             os.makedirs(_LOG_DIR)
         if not os.path.exists(work_dir):
@@ -156,20 +160,34 @@ class Builder(object):
         if not os.path.exists(os.path.join(work_dir, 'Makefile')):
             args = [os.path.join(_PKGS[pkg]['src'], 'configure')] + config_args
             run_command(args + extra_args, get_log_path(pkg, triple, 'config'), work_dir)
-        run_command(self.make_cmd, get_log_path(pkg, triple, 'build'), work_dir)
-        run_command(self.make_cmd + ['install'], get_log_path(pkg, triple, 'install'), work_dir)
+        run_command(self.make_cmd + [target], get_log_path(pkg, triple, target), work_dir)
+
+    def ensure_stubs(self) -> None:
+        # Glibc doesn't create this file when cross-compiling.
+        stubs_path = os.path.join(self.target_dir, 'include', 'gnu', 'stubs.h')
+        if not os.path.exists(stubs_path):
+            with open(stubs_path, 'w') as stubs:
+                stubs.write('')
 
     def compile(self) -> None:
-        binutils_args = ['--disable-gdb', '--prefix={}'.format(_INSTALL_DIR)]
-        gcc_args = ['--prefix={}'.format(_INSTALL_DIR)]
+        common_args = ['--prefix={}'.format(_INSTALL_DIR)]
+        binutils_args = ['--disable-gdb'] + common_args
+        gcc_args = common_args + ['--disable-shared']
+        # target is host for glibc.
+        glibc_args = ['--prefix={}'.format(self.target_dir)]
+        to_build = []
         if self.is_cross:
-            self.build_pkg('binutils', Target.TARGET, binutils_args)
-            self.build_pkg('gcc', Target.TARGET, gcc_args)
+            to_build.append(Target.TARGET)
         if self.is_canadian:
-            self.build_pkg('binutils', Target.HOST, binutils_args)
-            self.build_pkg('gcc', Target.HOST, gcc_args)
-            self.build_pkg('binutils', Target.CANADIAN, binutils_args)
-            self.build_pkg('gcc', Target.CANADIAN, gcc_args)
+            to_build.append(Target.HOST)
+            to_build.append(Target.CANADIAN)
+        for system in to_build:
+            #self.build_pkg('binutils', 'all', system, binutils_args)
+            #self.build_pkg('binutils', 'install', system, binutils_args)
+            #self.build_pkg('glibc', 'install-headers', system, glibc_args, True)
+            self.ensure_stubs()
+            self.build_pkg('gcc', 'all', system, common_args)
+            self.build_pkg('gcc', 'install', system, common_args)
 
 
 def main() -> None:
@@ -182,7 +200,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print('build: {}, host: {}, target: {}'.format(args.build, args.host, args.target))
-    fetch()
+    #fetch()
     Builder(args).compile()
 
 
