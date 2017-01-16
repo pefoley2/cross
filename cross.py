@@ -20,7 +20,7 @@ _PKGS['gcc']['url'] = 'git://gcc.gnu.org/git/gcc.git'
 _PKGS['glibc']['url'] = 'git://sourceware.org/git/glibc.git'
 _PKGS['linux']['url'] = 'git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
 
-_PKGS['binutils']['tag'] = 'binutils-2_27'
+_PKGS['binutils']['tag'] = 'b055631694'
 _PKGS['gcc']['tag'] = 'gcc-6_3_0-release'
 _PKGS['glibc']['tag'] = 'glibc-2.24'
 _PKGS['linux']['tag'] = 'v4.9'
