@@ -209,16 +209,18 @@ class Builder(object):
         for system in to_build:
             self.build_pkg('binutils', ['all'], system, binutils_args)
             self.build_pkg('binutils', ['install'], system, binutils_args)
+            self.build_pkg('gcc', ['all-gcc'], system, bootstrap_args)
+            self.build_pkg('gcc', ['install-gcc'], system, bootstrap_args)
             self.build_pkg('glibc', ['install-headers'], system, glibc_args)
             self.ensure_stubs()
-            self.build_pkg('gcc', ['all-gcc', 'all-target-libgcc'], system, bootstrap_args)
-            self.build_pkg('gcc', ['install-gcc', 'install-target-libgcc'], system, bootstrap_args)
+            self.build_pkg('gcc', ['all-target-libgcc'], system, bootstrap_args)
+            self.build_pkg('gcc', ['install-target-libgcc'], system, bootstrap_args)
             self.build_pkg('linux', [
                 'headers_install', 'ARCH={}'.format(self.arch),
                 'INSTALL_HDR_PATH={}'.format(self.target_dir)
             ], system, [])
-            self.build_pkg('glibc', ['all'], system, glibc_args, '2')
-            self.build_pkg('glibc', ['install'], system, glibc_args, '2')
+            self.build_pkg('glibc', ['all'], system, glibc_args)
+            self.build_pkg('glibc', ['install'], system, glibc_args)
             self.build_pkg('gcc', ['all'], system, common_args, '2')
             self.build_pkg('gcc', ['install'], system, common_args, '2')
 
