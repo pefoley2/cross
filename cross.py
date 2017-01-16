@@ -128,7 +128,8 @@ class Builder(object):
         self.dry_run = args.dry_run
         self.host_dir = os.path.join(_INSTALL_DIR, self.host)
         self.target_dir = os.path.join(_INSTALL_DIR, self.target)
-        self.arch = get_arch(self.target)
+        self.host_arch = get_arch(self.host)
+        self.target_arch = get_arch(self.target)
         self.make_cmd = ['make', '-j{}'.format(args.jobs)]
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
@@ -185,11 +186,6 @@ class Builder(object):
             if os.path.exists(configure_path):
                 self.run_command([configure_path] + config_args + extra_args,
                                  get_log_path(stage, pkg, triple, ['config']), work_dir)
-            else:
-                self.run_command(
-                    self.make_cmd +
-                    ['defconfig', 'ARCH={}'.format(self.arch), 'O={}'.format(work_dir)],
-                    get_log_path(stage, pkg, triple, target), _PKGS['linux']['src'])
         self.run_command(self.make_cmd + target, get_log_path(stage, pkg, triple, target), work_dir)
 
     def run_command(self, args: List[str], log_path: str, work_dir: str) -> None:
@@ -243,8 +239,9 @@ class Builder(object):
             self.build_pkg('gcc', ['install-gcc'], system, self.bootstrap_args)
             header_prefix = self.target_dir if system == Target.TARGET else self.host_dir
             # glibc requires linux headers to be available.
+            arch = self.host_arch if system == Target.HOST else self.target_arch
             self.build_pkg('linux', [
-                'headers_install', 'ARCH={}'.format(self.arch),
+                'headers_install', 'ARCH={}'.format(arch), '-C', _PKGS['linux']['src'], 'O=`pwd`',
                 'INSTALL_HDR_PATH={}'.format(header_prefix)
             ], system, [])
             glibc_args = ['--prefix={}'.format(header_prefix)]
