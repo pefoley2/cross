@@ -244,7 +244,7 @@ class Builder(object):
                 'headers_install', 'ARCH={}'.format(arch), '-C', _PKGS['linux']['src'], 'O=`pwd`',
                 'INSTALL_HDR_PATH={}'.format(header_prefix)
             ], system, [])
-            glibc_args = ['--prefix={}'.format(header_prefix)]
+            glibc_args = ['--prefix={}'.format(header_prefix), 'libc_cv_ssp_strong=no', 'libc_cv_ssp=no']
             self.build_pkg('glibc', ['install-headers'], system, glibc_args)
             if not self.dry_run:
                 ensure_stubs(header_prefix)
