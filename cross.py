@@ -180,7 +180,7 @@ class Builder(object):
         if not os.path.exists(work_dir):
             os.makedirs(work_dir)
 
-        if not os.path.exists(os.path.join(work_dir, 'Makefile')):
+        if not os.path.exists(os.path.join(work_dir, 'Makefile')) or self.dry_run:
             configure_path = os.path.join(_PKGS[pkg]['src'], 'configure')
             # Linux doesn't use autoconf.
             if os.path.exists(configure_path):
