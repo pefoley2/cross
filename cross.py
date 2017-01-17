@@ -228,8 +228,6 @@ class Builder(object):
                 proc.stdout.close()
 
     def do_canadian(self) -> None:
-        self.build_pkg('binutils', ['all'], Target.CANADIAN, self.binutils_args)
-        self.build_pkg('binutils', ['install'], Target.CANADIAN, self.binutils_args)
         self.build_pkg('gcc', ['all'], Target.CANADIAN, self.common_args)
         self.build_pkg('gcc', ['install'], Target.CANADIAN, self.common_args)
 
