@@ -1,0 +1,12 @@
+[submodule "src/binutils"]
+	path = src/binutils
+	url = git://sourceware.org/git/binutils-gdb.git
+[submodule "src/gcc"]
+	path = src/gcc
+	url = git://gcc.gnu.org/git/gcc.git
+[submodule "src/glibc"]
+	path = src/glibc
+	url = git://sourceware.org/git/glibc.git
+[submodule "src/linux"]
+	path = src/linux
+	url = git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git

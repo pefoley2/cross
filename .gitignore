@@ -1,5 +1,5 @@
 *.swp
-src
+src/*.tar.*
 logs
 work
 install
