@@ -16,20 +16,17 @@ warnings.simplefilter('default')
 
 _PKGS = collections.defaultdict(dict)  # type: Dict[str, Dict[str, str]]
 
-_PKGS['binutils']['url'] = 'git://sourceware.org/git/binutils-gdb.git'
-_PKGS['gcc']['url'] = 'git://gcc.gnu.org/git/gcc.git'
-_PKGS['glibc']['url'] = 'git://sourceware.org/git/glibc.git'
-_PKGS['linux']['url'] = 'git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
-
 _DEPS = {}
 _DEPS['gmp'] = 'https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz'
 _DEPS['mpfr'] = 'http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.xz'
 _DEPS['mpc'] = 'ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.3.tar.gz'
 
+"""
 _PKGS['binutils']['tag'] = 'b055631694'
 _PKGS['gcc']['tag'] = 'gcc-6_3_0-release'
 _PKGS['glibc']['tag'] = 'glibc-2.24'
 _PKGS['linux']['tag'] = 'v4.9'
+"""
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -72,11 +69,7 @@ def get_args(build: str, host: str, target: str) -> List[str]:
 
 
 def fetch() -> None:
-    for pkg in _PKGS.values():
-        if not os.path.exists(pkg['src']):
-            subprocess.run(['git', 'clone', '--branch', 'master', pkg['url'], pkg['src']],
-                           check=True)
-        subprocess.run(['git', 'checkout', pkg['tag']], check=True, cwd=pkg['src'])
+    subprocess.run(['git', 'submodule', 'update', '--remote'], check=True)
     for dep, url in _DEPS.items():
         dest = os.path.join(_PKGS['gcc']['src'], dep)
         if not os.path.exists(dest):
@@ -149,6 +142,7 @@ class Builder(object):
         self.common_args = ['--prefix={}'.format(_INSTALL_DIR), '--disable-multilib']
         # glibc checks for a cross g++
         self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c,c++']
+        self.gcc_args = self.common_args + ['--enable-languages=c,c++,fortran,lto,objc']
         self.binutils_args = self.common_args + ['--disable-gdb']
 
     def format_args(self, stage: str, pkg: str, target: Target,
@@ -274,8 +268,8 @@ class Builder(object):
             self.build_pkg('glibc', ['all'], system, glibc_args)
             self.build_pkg('glibc', ['install'], system, glibc_args)
             # We need to build a new gcc to get shared libraries, which need to link with glibc.
-            self.build_pkg('gcc', ['all'], system, self.common_args, '2')
-            self.build_pkg('gcc', ['install'], system, self.common_args, '2')
+            self.build_pkg('gcc', ['all'], system, self.gcc_args, '2')
+            self.build_pkg('gcc', ['install'], system, self.gcc_args, '2')
 
 
 def main() -> None:
