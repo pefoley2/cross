@@ -10,7 +10,7 @@ import subprocess
 import sys
 import warnings
 
-from typing import Any, List, Sequence, Tuple, Union
+from typing import Any, Dict, List, Sequence, Tuple, Union
 
 warnings.simplefilter('default')
 
@@ -83,10 +83,11 @@ def fetch() -> None:
             subprocess.run(['wget', '-N', '-P', _SRC_DIR, url], check=True)
             tar_files = glob.glob(os.path.join(_SRC_DIR, '*{}*'.format(dep)))
             os.mkdir(dest)
-            subprocess.run(['tar', 'xf', tar_files[0], '--strip-components=1', '-C', dest], check=True)
+            subprocess.run(['tar', 'xf', tar_files[0], '--strip-components=1', '-C', dest],
+                           check=True)
 
 
-def get_log_path(stage: str, pkg: str, triple: str, action: str) -> str:
+def get_log_path(stage: str, pkg: str, triple: str, action: List[str]) -> str:
     return _PKGS[pkg]['log'].format(stage, triple, action[0])
 
 
@@ -134,7 +135,6 @@ class Target(enum.Enum):
 class Builder(object):
 
     def __init__(self, args: argparse.Namespace) -> None:
-        os.environ['PATH'] = '{}:{}'.format(os.environ['PATH'], _INSTALL_BIN)
         self.build = args.build
         self.host = args.host
         self.target = args.target
@@ -186,7 +186,11 @@ class Builder(object):
                   system: Target,
                   extra_args: List[str],
                   stage: str='') -> None:
-        host_only = True if pkg == 'glibc' else False
+        env = os.environ.copy()
+        host_only = False
+        if pkg == 'glibc':
+            env['PATH'] = '{}:{}'.format(os.environ['PATH'], _INSTALL_BIN)
+            host_only = True
         triple, work_dir, config_args = self.format_args(stage, pkg, system, host_only)
         if not os.path.exists(_LOG_DIR):
             os.makedirs(_LOG_DIR)
@@ -198,10 +202,12 @@ class Builder(object):
             # Linux doesn't use autoconf.
             if os.path.exists(configure_path):
                 self.run_command([configure_path] + config_args + extra_args,
-                                 get_log_path(stage, pkg, triple, ['config']), work_dir)
-        self.run_command(self.make_cmd + target, get_log_path(stage, pkg, triple, target), work_dir)
+                                 get_log_path(stage, pkg, triple, ['config']), work_dir, env)
+        self.run_command(self.make_cmd + target,
+                         get_log_path(stage, pkg, triple, target), work_dir, env)
 
-    def run_command(self, args: List[str], log_path: str, work_dir: str) -> None:
+    def run_command(self, args: List[str], log_path: str, work_dir: str,
+                    env: Dict[str, str]) -> None:
         if self.dry_run:
             cmd = ' '.join(args)
             print('{}, cwd={}'.format(cmd, work_dir).replace('{}/'.format(_DIR), ''))
@@ -214,7 +220,8 @@ class Builder(object):
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     universal_newlines=True,
-                    cwd=work_dir)
+                    cwd=work_dir,
+                    env=env)
                 for line in proc.stdout:
                     sys.stdout.write(line)
                     log_file.write(line)
@@ -255,7 +262,9 @@ class Builder(object):
                 'headers_install', 'ARCH={}'.format(arch), '-C', _PKGS['linux']['src'], 'O=`pwd`',
                 'INSTALL_HDR_PATH={}'.format(header_prefix)
             ], system, [])
-            glibc_args = ['--prefix={}'.format(header_prefix), 'libc_cv_ssp_strong=no', 'libc_cv_ssp=no']
+            glibc_args = [
+                '--prefix={}'.format(header_prefix), 'libc_cv_ssp_strong=no', 'libc_cv_ssp=no'
+            ]
             self.build_pkg('glibc', ['install-headers'], system, glibc_args)
             if not self.dry_run:
                 ensure_stubs(header_prefix)
