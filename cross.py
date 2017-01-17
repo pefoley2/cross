@@ -4,6 +4,7 @@
 import argparse
 import collections
 import enum
+import glob
 import os
 import subprocess
 import sys
@@ -19,6 +20,11 @@ _PKGS['binutils']['url'] = 'git://sourceware.org/git/binutils-gdb.git'
 _PKGS['gcc']['url'] = 'git://gcc.gnu.org/git/gcc.git'
 _PKGS['glibc']['url'] = 'git://sourceware.org/git/glibc.git'
 _PKGS['linux']['url'] = 'git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git'
+
+_DEPS = {}
+_DEPS['gmp'] = 'https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz'
+_DEPS['mpfr'] = 'http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.xz'
+_DEPS['mpc'] = 'ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.3.tar.gz'
 
 _PKGS['binutils']['tag'] = 'b055631694'
 _PKGS['gcc']['tag'] = 'gcc-6_3_0-release'
@@ -71,6 +77,13 @@ def fetch() -> None:
             subprocess.run(['git', 'clone', '--branch', 'master', pkg['url'], pkg['src']],
                            check=True)
         subprocess.run(['git', 'checkout', pkg['tag']], check=True, cwd=pkg['src'])
+    for dep, url in _DEPS.items():
+        dest = os.path.join(_PKGS['gcc']['src'], dep)
+        if not os.path.exists(dest):
+            subprocess.run(['wget', '-N', '-P', _SRC_DIR, url], check=True)
+            tar_files = glob.glob(os.path.join(_SRC_DIR, '*{}*'.format(dep)))
+            os.mkdir(dest)
+            subprocess.run(['tar', 'xf', tar_files[0], '--strip-components=1', '-C', dest], check=True)
 
 
 def get_log_path(stage: str, pkg: str, triple: str, action: str) -> str:
