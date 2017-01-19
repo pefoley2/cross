@@ -175,8 +175,9 @@ class Builder(object):
         env = os.environ.copy()
         host_only = False
         if pkg == 'glibc':
-            env['PATH'] = '{}:{}'.format(os.environ['PATH'], _INSTALL_BIN)
             host_only = True
+        if pkg == 'glibc' or system == Target.CANADIAN:
+            env['PATH'] = '{}:{}'.format(os.environ['PATH'], _INSTALL_BIN)
         triple, work_dir, config_args = self.format_args(stage, pkg, system, host_only)
         if not os.path.exists(_LOG_DIR):
             os.makedirs(_LOG_DIR)
@@ -221,10 +222,7 @@ class Builder(object):
                 proc.stdout.close()
 
     def do_canadian(self) -> None:
-        canadian_args = [
-            '--prefix={}'.format(os.path.join(_INSTALL_DIR, 'canada')),
-            '--with-build-time-tools={}'.format(os.path.join(_INSTALL_DIR, self.host, 'bin'))
-        ]
+        canadian_args = ['--prefix={}'.format(os.path.join(_INSTALL_DIR, 'canada'))]
         self.build_pkg('gcc', ['all'], Target.CANADIAN, canadian_args)
         self.build_pkg('gcc', ['install'], Target.CANADIAN, canadian_args)
 
