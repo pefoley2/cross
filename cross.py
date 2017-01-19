@@ -21,13 +21,6 @@ _DEPS['gmp'] = 'https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz'
 _DEPS['mpfr'] = 'http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.xz'
 _DEPS['mpc'] = 'ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.3.tar.gz'
 
-"""
-_PKGS['binutils']['tag'] = 'b055631694'
-_PKGS['gcc']['tag'] = 'gcc-6_3_0-release'
-_PKGS['glibc']['tag'] = 'glibc-2.24'
-_PKGS['linux']['tag'] = 'v4.9'
-"""
-
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
 _INSTALL_DIR = os.path.join(_DIR, 'install')
@@ -142,7 +135,6 @@ class Builder(object):
         self.common_args = ['--prefix={}'.format(_INSTALL_DIR), '--disable-multilib']
         # glibc checks for a cross g++
         self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c,c++']
-        self.gcc_args = self.common_args + ['--enable-languages=c,c++,fortran,lto,objc']
         self.binutils_args = self.common_args + ['--disable-gdb']
 
     def format_args(self, stage: str, pkg: str, target: Target,
@@ -229,8 +221,12 @@ class Builder(object):
                 proc.stdout.close()
 
     def do_canadian(self) -> None:
-        self.build_pkg('gcc', ['all'], Target.CANADIAN, self.common_args)
-        self.build_pkg('gcc', ['install'], Target.CANADIAN, self.common_args)
+        canadian_args = [
+            '--prefix={}'.format(os.path.join(_INSTALL_DIR, 'canada')),
+            '--with-build-time-tools={}'.format(os.path.join(_INSTALL_DIR, self.host, 'bin'))
+        ]
+        self.build_pkg('gcc', ['all'], Target.CANADIAN, canadian_args)
+        self.build_pkg('gcc', ['install'], Target.CANADIAN, canadian_args)
 
     def compile(self) -> None:
         to_build = []
@@ -268,8 +264,8 @@ class Builder(object):
             self.build_pkg('glibc', ['all'], system, glibc_args)
             self.build_pkg('glibc', ['install'], system, glibc_args)
             # We need to build a new gcc to get shared libraries, which need to link with glibc.
-            self.build_pkg('gcc', ['all'], system, self.gcc_args, '2')
-            self.build_pkg('gcc', ['install'], system, self.gcc_args, '2')
+            self.build_pkg('gcc', ['all'], system, self.common_args, '2')
+            self.build_pkg('gcc', ['install'], system, self.common_args, '2')
 
 
 def main() -> None:
