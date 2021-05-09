@@ -17,9 +17,10 @@ warnings.simplefilter('default')
 _PKGS = collections.defaultdict(dict)  # type: Dict[str, Dict[str, str]]
 
 _DEPS = {}
-_DEPS['gmp'] = 'https://gmplib.org/download/gmp/gmp-6.1.2.tar.lz'
-_DEPS['mpfr'] = 'http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.xz'
-_DEPS['mpc'] = 'ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.3.tar.gz'
+_DEPS['gmp'] = 'https://gmplib.org/download/gmp/gmp-6.2.1.tar.xz'
+_DEPS['mpfr'] = 'https://www.mpfr.org/mpfr-current/mpfr-4.1.0.tar.xz'
+_DEPS['mpc'] = 'https://ftp.gnu.org/gnu/mpc/mpc-1.2.1.tar.gz'
+_DEPS['isl'] = 'http://isl.gforge.inria.fr/isl-0.24.tar.xz'
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -62,7 +63,7 @@ def get_args(build: str, host: str, target: str) -> List[str]:
 
 
 def fetch() -> None:
-    subprocess.run(['git', 'submodule', 'update', '--remote'], check=True)
+    subprocess.run(['git', 'submodule', 'update', '--remote', '--progress'], check=True)
     for dep, url in _DEPS.items():
         dest = os.path.join(_PKGS['gcc']['src'], dep)
         if not os.path.exists(dest):
@@ -100,11 +101,12 @@ class Canonicalize(argparse.Action):
                  parser: argparse.ArgumentParser,
                  namespace: argparse.Namespace,
                  values: Union[str, Sequence[Any], None],
-                 option_string: str=None) -> None:
-        proc = subprocess.run(['/usr/share/gnuconfig/config.sub', str(values)],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT,
-                              universal_newlines=True)
+                 option_string: str = None) -> None:
+        proc = subprocess.run(
+            ['/usr/share/gnuconfig/config.sub', str(values)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True)
         output = proc.stdout.strip()
         if proc.returncode:
             raise CrossException(output)
@@ -137,7 +139,10 @@ class Builder(object):
         self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c,c++']
         self.binutils_args = self.common_args + ['--disable-gdb']
 
-    def format_args(self, stage: str, pkg: str, target: Target,
+    def format_args(self,
+                    stage: str,
+                    pkg: str,
+                    target: Target,
                     host_only=False) -> Tuple[str, str, List[str]]:
         work = _PKGS[pkg]['work']
         name = work_dir = args = None
@@ -171,7 +176,7 @@ class Builder(object):
                   target: List[str],
                   system: Target,
                   extra_args: List[str],
-                  stage: str='') -> None:
+                  stage: str = '') -> None:
         env = os.environ.copy()
         host_only = False
         if pkg == 'glibc':
@@ -190,11 +195,11 @@ class Builder(object):
             if os.path.exists(configure_path):
                 self.run_command([configure_path] + config_args + extra_args,
                                  get_log_path(stage, pkg, triple, ['config']), work_dir, env)
-        self.run_command(self.make_cmd + target,
-                         get_log_path(stage, pkg, triple, target), work_dir, env)
+        self.run_command(self.make_cmd + target, get_log_path(stage, pkg, triple, target), work_dir,
+                         env)
 
-    def run_command(self, args: List[str], log_path: str, work_dir: str,
-                    env: Dict[str, str]) -> None:
+    def run_command(self, args: List[str], log_path: str, work_dir: str, env: Dict[str,
+                                                                                   str]) -> None:
         if self.dry_run:
             cmd = ' '.join(args)
             print('{}, cwd={}'.format(cmd, work_dir).replace('{}/'.format(_DIR), ''))
@@ -202,21 +207,18 @@ class Builder(object):
         proc = None
         try:
             with open(log_path, 'w') as log_file:
-                proc = subprocess.Popen(
-                    args,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    universal_newlines=True,
-                    cwd=work_dir,
-                    env=env)
+                proc = subprocess.Popen(args,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT,
+                                        universal_newlines=True,
+                                        cwd=work_dir,
+                                        env=env)
                 for line in proc.stdout:
                     sys.stdout.write(line)
                     log_file.write(line)
                 proc.stdout.close()
             if proc.wait():
                 raise CrossException('Command {} failed.'.format(' '.join(args)))
-        except:
-            raise
         finally:
             if hasattr(proc, 'stdout'):
                 proc.stdout.close()
@@ -266,7 +268,7 @@ class Builder(object):
             self.build_pkg('gcc', ['install'], system, self.common_args, '2')
 
 
-def main() -> None:
+def main():
     parser = argparse.ArgumentParser()
     build_triple = get_build()
     parser.add_argument('--build', action=Canonicalize, default=build_triple)
