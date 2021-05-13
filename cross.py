@@ -6,6 +6,7 @@ import collections
 import enum
 import glob
 import os
+import signal
 import subprocess
 import sys
 import warnings
@@ -28,10 +29,10 @@ _INSTALL_DIR = os.path.join(_DIR, 'install')
 _INSTALL_BIN = os.path.join(_INSTALL_DIR, 'bin')
 
 _LOG_DIR = os.path.join(_DIR, 'logs')
-_PKGS['binutils']['log'] = os.path.join(_LOG_DIR, 'binutils{}-{}-{}.log')
-_PKGS['gcc']['log'] = os.path.join(_LOG_DIR, 'gcc{}-{}-{}.log')
-_PKGS['glibc']['log'] = os.path.join(_LOG_DIR, 'glibc{}-{}-{}.log')
-_PKGS['linux']['log'] = os.path.join(_LOG_DIR, 'linux{}-{}-{}.log')
+_PKGS['binutils']['log'] = 'binutils{}-{}.log'
+_PKGS['gcc']['log'] = 'gcc{}-{}.log'
+_PKGS['glibc']['log'] = 'glibc{}-{}.log'
+_PKGS['linux']['log'] = 'linux{}-{}.log'
 
 _SRC_DIR = os.path.join(_DIR, 'src')
 _PKGS['binutils']['src'] = os.path.join(_SRC_DIR, 'binutils')
@@ -63,7 +64,7 @@ def get_args(build: str, host: str, target: str) -> List[str]:
 
 
 def fetch() -> None:
-    subprocess.run(['git', 'submodule', 'update', '--remote', '--progress'], check=True)
+    subprocess.run(['git', 'submodule', 'update', '--progress'], check=True)
     for dep, url in _DEPS.items():
         dest = os.path.join(_PKGS['gcc']['src'], dep)
         if not os.path.exists(dest):
@@ -75,7 +76,7 @@ def fetch() -> None:
 
 
 def get_log_path(stage: str, pkg: str, triple: str, action: List[str]) -> str:
-    return _PKGS[pkg]['log'].format(stage, triple, action[0])
+    return os.path.join(_LOG_DIR, triple, _PKGS[pkg]['log'].format(stage, action[0]))
 
 
 def get_arch(arch: str) -> str:
@@ -84,6 +85,8 @@ def get_arch(arch: str) -> str:
         return 'alpha'
     if arch == 'powerpc':
         return 'powerpc'
+    if arch == 'x86_64':
+        return 'x86'
     raise Exception('Unknown arch {}'.format(arch))
 
 
@@ -135,7 +138,7 @@ class Builder(object):
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
         self.common_args = ['--prefix={}'.format(_INSTALL_DIR), '--disable-multilib']
-        # glibc checks for a cross g++
+        # glibc needs a cross g++
         self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c,c++']
         self.binutils_args = self.common_args + ['--disable-gdb']
 
@@ -184,12 +187,13 @@ class Builder(object):
         if pkg == 'glibc' or system == Target.CANADIAN:
             env['PATH'] = '{}:{}'.format(os.environ['PATH'], _INSTALL_BIN)
         triple, work_dir, config_args = self.format_args(stage, pkg, system, host_only)
-        if not os.path.exists(_LOG_DIR):
-            os.makedirs(_LOG_DIR)
-        if not os.path.exists(work_dir):
-            os.makedirs(work_dir)
+        if not self.dry_run:
+            if not os.path.exists(os.path.join(_LOG_DIR, triple)):
+                os.makedirs(os.path.join(_LOG_DIR, triple))
+            if not os.path.exists(work_dir):
+                os.makedirs(work_dir)
 
-        if not os.path.exists(os.path.join(work_dir, 'Makefile')) or self.dry_run:
+        if not os.path.exists(os.path.join(work_dir, 'Makefile')):
             configure_path = os.path.join(_PKGS[pkg]['src'], 'configure')
             # Linux doesn't use autoconf.
             if os.path.exists(configure_path):
@@ -218,17 +222,31 @@ class Builder(object):
                     log_file.write(line)
                 proc.stdout.close()
             if proc.wait():
-                raise CrossException('Command {} failed.'.format(' '.join(args)))
+                raise CrossException('Command {} failed in {}.'.format(' '.join(args), work_dir))
         finally:
+            if not proc.returncode:
+                proc.send_signal(signal.SIGINT)
+                proc.wait()
             if hasattr(proc, 'stdout'):
                 proc.stdout.close()
 
-    def do_canadian(self) -> None:
+    def do_canadian(self):
         canadian_args = ['--prefix={}'.format(os.path.join(_INSTALL_DIR, 'canada'))]
         self.build_pkg('gcc', ['all'], Target.CANADIAN, canadian_args)
         self.build_pkg('gcc', ['install'], Target.CANADIAN, canadian_args)
 
-    def compile(self) -> None:
+    def do_linux(self, system: Target, header_prefix: str):
+        arch = self.host_arch if system == Target.HOST else self.target_arch
+        self.build_pkg('linux', [
+            'headers_install', 'ARCH={}'.format(arch), '-C', _PKGS['linux']['src'], 'O=`pwd`',
+            'INSTALL_HDR_PATH={}'.format(header_prefix)
+        ], system, [])
+
+    def do_glibc_headers(self, system: Target, header_prefix: str):
+        glibc_args = ['--prefix={}'.format(header_prefix)]
+        self.build_pkg('glibc', ['install-headers'], system, glibc_args)
+
+    def compile(self):
         to_build = []
         if self.is_cross:
             to_build.append(Target.TARGET)
@@ -245,22 +263,16 @@ class Builder(object):
             # otherwise we'll pick up the wrong gcc and fail when we try to actually build the library.
             self.build_pkg('gcc', ['all-gcc'], system, self.bootstrap_args)
             self.build_pkg('gcc', ['install-gcc'], system, self.bootstrap_args)
-            header_prefix = self.target_dir if system == Target.TARGET else self.host_dir
             # glibc requires linux headers to be available.
-            arch = self.host_arch if system == Target.HOST else self.target_arch
-            self.build_pkg('linux', [
-                'headers_install', 'ARCH={}'.format(arch), '-C', _PKGS['linux']['src'], 'O=`pwd`',
-                'INSTALL_HDR_PATH={}'.format(header_prefix)
-            ], system, [])
-            glibc_args = [
-                '--prefix={}'.format(header_prefix), 'libc_cv_ssp_strong=no', 'libc_cv_ssp=no'
-            ]
-            self.build_pkg('glibc', ['install-headers'], system, glibc_args)
+            header_prefix = self.target_dir if system == Target.TARGET else self.host_dir
+            self.do_linux(system, header_prefix)
+            self.do_glibc_headers(system, header_prefix)
             if not self.dry_run:
                 ensure_stubs(header_prefix)
             # glibc links against libgcc, so we need to build it first.
             self.build_pkg('gcc', ['all-target-libgcc'], system, self.bootstrap_args)
             self.build_pkg('gcc', ['install-target-libgcc'], system, self.bootstrap_args)
+            glibc_args = ['--prefix={}'.format(header_prefix)]
             self.build_pkg('glibc', ['all'], system, glibc_args)
             self.build_pkg('glibc', ['install'], system, glibc_args)
             # We need to build a new gcc to get shared libraries, which need to link with glibc.
