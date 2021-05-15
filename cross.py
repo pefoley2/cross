@@ -85,6 +85,8 @@ def get_arch(arch: str) -> str:
         return 'alpha'
     if arch == 'powerpc':
         return 'powerpc'
+    if arch == 'aarch64':
+        return 'arm64'
     if arch == 'x86_64':
         return 'x86'
     raise Exception('Unknown arch {}'.format(arch))
@@ -231,7 +233,7 @@ class Builder(object):
                 proc.stdout.close()
 
     def do_canadian(self):
-        canadian_args = ['--prefix={}'.format(os.path.join(_INSTALL_DIR, 'canada'))]
+        canadian_args = ['--prefix={}'.format(os.path.join(_INSTALL_DIR, self.host_dir))]
         self.build_pkg('gcc', ['all'], Target.CANADIAN, canadian_args)
         self.build_pkg('gcc', ['install'], Target.CANADIAN, canadian_args)
 
