@@ -139,10 +139,11 @@ class Builder(object):
         self.make_cmd = ['make', '-j{}'.format(args.jobs)]
         self.is_canadian = self.build != self.host
         self.is_cross = self.host != self.target
-        self.common_args = ['--prefix={}'.format(_INSTALL_DIR), '--disable-multilib']
+        self.common_args = ['--prefix={}'.format(_INSTALL_DIR)]
+        self.gcc_args = self.common_args + ['--enable-languages=all']
+        # We can't build shared libgcc w/o glibc.
         # glibc needs a cross g++
         self.bootstrap_args = self.common_args + ['--disable-shared', '--enable-languages=c,c++']
-        self.binutils_args = self.common_args + ['--disable-gdb']
 
     def format_args(self,
                     stage: str,
@@ -259,8 +260,8 @@ class Builder(object):
             if system == Target.CANADIAN:
                 self.do_canadian()
                 return
-            self.build_pkg('binutils', ['all'], system, self.binutils_args)
-            self.build_pkg('binutils', ['install'], system, self.binutils_args)
+            self.build_pkg('binutils', ['all'], system, self.common_args)
+            self.build_pkg('binutils', ['install'], system, self.common_args)
             # This needs to come before glibc is configured,
             # otherwise we'll pick up the wrong gcc and fail when we try to actually build the library.
             self.build_pkg('gcc', ['all-gcc'], system, self.bootstrap_args)
@@ -278,8 +279,8 @@ class Builder(object):
             self.build_pkg('glibc', ['all'], system, glibc_args)
             self.build_pkg('glibc', ['install'], system, glibc_args)
             # We need to build a new gcc to get shared libraries, which need to link with glibc.
-            self.build_pkg('gcc', ['all'], system, self.common_args, '2')
-            self.build_pkg('gcc', ['install'], system, self.common_args, '2')
+            self.build_pkg('gcc', ['all'], system, self.gcc_args, '2')
+            self.build_pkg('gcc', ['install'], system, self.gcc_args, '2')
 
 
 def main():
